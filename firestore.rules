@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userEmail() {
+      return request.auth.token.email;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(userEmail()));
+    }
+
+    function isActiveAdmin() {
+      return isSignedIn()
+        && userDoc().data.role == 'ADMIN'
+        && userDoc().data.accountStatus == 'Active';
+    }
+
+    function isActiveStaff() {
+      return isSignedIn()
+        && userDoc().data.role == 'STAFF'
+        && userDoc().data.accountStatus == 'Active';
+    }
+
+    // ── USERS ──────────────────────────────────────────────
+    match /users/{email} {
+      allow read: if isSignedIn() && (email == userEmail() || isActiveAdmin());
+      allow create: if isSignedIn()
+        && email == userEmail()
+        && request.resource.data.role == 'STAFF'
+        && request.resource.data.accountStatus == 'Pending';
+      allow update: if isActiveAdmin()
+        || (email == userEmail()
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.accountStatus == resource.data.accountStatus);
+      allow delete: if isActiveAdmin();
+    }
+
+    // ── PROJECTS ───────────────────────────────────────────
+    match /projects/{projectId} {
+      allow read: if isSignedIn();
+      allow write: if isActiveAdmin();
+    }
+
+    // ── MILESTONES ─────────────────────────────────────────
+    match /milestones/{milestoneId} {
+      allow read: if isSignedIn();
+      allow write: if isActiveAdmin();
+    }
+
+    // ── TASKS ──────────────────────────────────────────────
+    match /tasks/{taskId} {
+      allow read: if isSignedIn()
+        && (isActiveAdmin() || resource.data.assignedStaffEmail == userEmail());
+      allow create, delete: if isActiveAdmin();
+      allow update: if isActiveAdmin()
+        || (isActiveStaff()
+            && resource.data.assignedStaffEmail == userEmail()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'progressPercentage', 'updatedAt']));
+    }
+
+    // ── PROGRESS UPDATES (append-only) ─────────────────────
+    match /progress_updates/{updateId} {
+      allow read: if isSignedIn()
+        && (isActiveAdmin() || resource.data.submittedBy == userEmail());
+      allow create: if isActiveStaff()
+        && request.resource.data.submittedBy == userEmail();
+      allow update, delete: if false;
+    }
+
+    // ── REVIEWS (append-only) ──────────────────────────────
+    match /reviews/{reviewId} {
+      allow read: if isSignedIn()
+        && (isActiveAdmin()
+            || get(/databases/$(database)/documents/tasks/$(resource.data.taskId))
+                 .data.assignedStaffEmail == userEmail());
+      allow create: if isActiveAdmin();
+      allow update, delete: if false;
+    }
+
+    // ── ACTIVITY HISTORY (append-only) ─────────────────────
+    match /activity_history/{historyId} {
+      allow read: if isSignedIn()
+        && (isActiveAdmin() || resource.data.userEmail == userEmail());
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+  }
+}
