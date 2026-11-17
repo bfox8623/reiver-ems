@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit3, PauseCircle, PlayCircle } from 'lucide-react';
+import { Plus, Search, Edit3, PauseCircle, PlayCircle, Trash2, AlertTriangle } from 'lucide-react';
 import { StatusBadge, Modal } from '../../components/Shared';
 import { DivisionBadge } from '../../components/Layout';
-import { saveTask, removeTask, saveHistory } from '../../services/db';
-import { nowTimestamp, isTaskOverdue } from '../../utils/date';
+import { saveTask, saveHistory, deleteTaskWithCascade } from '../../services/db';
+import { nowTimestamp, isTaskOverdue, formatTimestamp } from '../../utils/date';
 import { DIVISIONS, PRIORITIES, TASK_STATUSES } from '../../config/bootstrap';
 
 const emptyTask = {
@@ -22,12 +22,20 @@ export default function TaskManagement({ tasks, users, projects, milestones, use
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyTask);
 
+  // Delete state
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const getUserByEmail = (email) => users.find((u) => u.email === email);
   const getProjectName = (id) => projects.find((p) => p.id === id)?.projectName || id;
 
   const filtered = tasks.filter((t) => {
     const staff = getUserByEmail(t.assignedStaffEmail);
-    const matchesSearch = t.taskTitle?.toLowerCase().includes(search.toLowerCase()) || t.taskId?.toLowerCase().includes(search.toLowerCase()) || staff?.fullName?.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      t.taskTitle?.toLowerCase().includes(search.toLowerCase()) ||
+      t.taskId?.toLowerCase().includes(search.toLowerCase()) ||
+      staff?.fullName?.toLowerCase().includes(search.toLowerCase());
     const matchesDiv = divFilter === 'ALL' || staff?.division === divFilter;
     const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
     return matchesSearch && matchesDiv && matchesStatus;
@@ -56,7 +64,9 @@ export default function TaskManagement({ tasks, users, projects, milestones, use
       action: editing ? 'Task Edited' : 'Task Assigned',
       previousStatus: editing?.status || 'None',
       newStatus: payload.status,
-      description: editing ? `${userProfile.fullName} updated task details.` : `${userProfile.fullName} assigned task to ${getUserByEmail(payload.assignedStaffEmail)?.fullName}.`,
+      description: editing
+        ? `${userProfile.fullName} updated task details.`
+        : `${userProfile.fullName} assigned task to ${getUserByEmail(payload.assignedStaffEmail)?.fullName}.`,
       timestamp: nowTimestamp(),
     });
     showToast(editing ? 'Task updated.' : 'Task created.');
@@ -64,7 +74,11 @@ export default function TaskManagement({ tasks, users, projects, milestones, use
   };
 
   const handleStatusChange = async (task, newStatus) => {
-    await saveTask(task.id, { ...task, status: newStatus, progressPercentage: newStatus === 'Completed' ? 100 : task.progressPercentage });
+    await saveTask(task.id, {
+      ...task,
+      status: newStatus,
+      progressPercentage: newStatus === 'Completed' ? 100 : task.progressPercentage,
+    });
     await saveHistory(`HST-${Date.now()}`, {
       historyId: `HST-${Date.now()}`,
       userEmail: userProfile.email,
@@ -79,12 +93,45 @@ export default function TaskManagement({ tasks, users, projects, milestones, use
     showToast(`Task moved to ${newStatus}.`);
   };
 
+  const openDelete = (task) => {
+    setDeleteTarget(task);
+    setDeleteConfirmed(false);
+    setDeleting(false);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !deleteConfirmed) return;
+    setDeleting(true);
+    try {
+      // Log dulu sebelum hapus
+      await saveHistory(`HST-${Date.now()}`, {
+        historyId: `HST-${Date.now()}`,
+        userEmail: userProfile.email,
+        userName: userProfile.fullName,
+        taskId: deleteTarget.taskId,
+        action: 'Task Deleted',
+        previousStatus: deleteTarget.status,
+        newStatus: 'Deleted',
+        description: `${userProfile.fullName} menghapus task "${deleteTarget.taskTitle}" (assignee: ${getUserByEmail(deleteTarget.assignedStaffEmail)?.fullName || deleteTarget.assignedStaffEmail}).`,
+        timestamp: nowTimestamp(),
+      });
+      const result = await deleteTaskWithCascade(deleteTarget.id);
+      showToast(`Task dihapus (${result.updatesDeleted} submission & ${result.reviewsDeleted} review ikut terhapus).`);
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal menghapus task: ' + err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-white">Task Management & Assignment</h1>
-          <p className="text-xs text-slate-400">Assign, monitor, hold, reopen, or mark approved tasks completed</p>
+          <p className="text-xs text-slate-400">Assign, monitor, hold, reopen, mark approved, or delete tasks</p>
         </div>
         {projects.length === 0 ? (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">
@@ -166,11 +213,15 @@ export default function TaskManagement({ tasks, users, projects, milestones, use
                       {t.status === 'Approved' && (
                         <button onClick={() => handleStatusChange(t, 'Completed')} className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-semibold">Complete</button>
                       )}
+                      <button onClick={() => openDelete(t)} className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-rose-300" title="Hapus Task"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </td>
                 </tr>
               );
             })}
+            {filtered.length === 0 && (
+              <tr><td colSpan={6} className="py-8 text-center text-slate-400 text-xs">No tasks match the current filter.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -250,6 +301,72 @@ export default function TaskManagement({ tasks, users, projects, milestones, use
               <button type="submit" className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-bold">{editing ? 'Save Changes' : 'Create Task'}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteTarget && (
+        <Modal title="Hapus Task — Konfirmasi" onClose={() => !deleting && setDeleteTarget(null)} maxWidth="max-w-lg">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40">
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div className="text-xs text-rose-200 leading-relaxed">
+                <p className="font-semibold">Tindakan ini tidak dapat dibatalkan.</p>
+                <p className="mt-1 opacity-90">
+                  Menghapus task akan menghapus juga semua <strong>submission (progress_updates)</strong> dan{' '}
+                  <strong>review decision</strong> yang terkait. Log <em>activity_history</em> tetap tersimpan sebagai audit trail.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Task ID</span>
+                <span className="font-mono font-semibold text-cyan-400">{deleteTarget.taskId}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-400 shrink-0">Judul</span>
+                <span className="text-white text-right">{deleteTarget.taskTitle}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Assignee</span>
+                <span className="text-white">{getUserByEmail(deleteTarget.assignedStaffEmail)?.fullName || deleteTarget.assignedStaffEmail}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400">Status</span>
+                <StatusBadge status={deleteTarget.status} />
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Progress</span>
+                <span className="font-mono text-slate-200">{deleteTarget.progressPercentage}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Deadline</span>
+                <span className="font-mono text-slate-200">{deleteTarget.deadline}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Last Updated</span>
+                <span className="font-mono text-slate-200">{formatTimestamp(deleteTarget.updatedAt, deleteTarget.lastUpdated || '—')}</span>
+              </div>
+            </div>
+
+            <label className="flex items-start gap-2.5 cursor-pointer p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700">
+              <input type="checkbox" checked={deleteConfirmed} onChange={(e) => setDeleteConfirmed(e.target.checked)} className="mt-0.5 w-4 h-4 accent-rose-500" />
+              <span className="text-xs text-slate-200">
+                Saya mengerti dan yakin ingin menghapus task ini secara permanen beserta submission & review terkait.
+              </span>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setDeleteTarget(null)} disabled={deleting} className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-white disabled:opacity-50">Batal</button>
+              <button onClick={handleDelete} disabled={!deleteConfirmed || deleting} className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-white text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
+                {deleting ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />Menghapus...</>
+                ) : (
+                  <><Trash2 className="w-3.5 h-3.5" />Hapus Permanen</>
+                )}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

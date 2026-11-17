@@ -34,6 +34,7 @@ export function formatFirestoreDate(ts) {
   }
   return String(ts);
 }
+
 export function formatTimestamp(ts, fallback = '—') {
   if (ts === null || ts === undefined) return fallback;
   if (typeof ts === 'string') return ts;
@@ -53,14 +54,16 @@ export function formatTimestamp(ts, fallback = '—') {
   return fallback;
 }
 
-// Untuk sorting aman pada field yang mungkin Timestamp / string / Date
 export function tsToComparable(ts) {
   if (!ts) return '';
   if (typeof ts === 'string') return ts;
   if (typeof ts.toDate === 'function') {
-    try { return ts.toDate().toISOString(); } catch { return ''; }
+    try {
+      return ts.toDate().toISOString();
+    } catch {
+      return '';
+    }
   }
   if (ts instanceof Date) return ts.toISOString();
   return '';
 }
-
