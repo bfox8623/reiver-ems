@@ -11,13 +11,19 @@ export default function Login() {
   const [isLoggingIn, setIsLoggingIn] = useState(false); // State baru
 
   useEffect(() => {
-    if (!loading && firebaseUser) {
-      if (userProfile?.accountStatus === 'Active') {
-        navigate(userProfile.role === 'ADMIN' ? '/admin' : '/staff', { replace: true });
-      } else {
-        navigate('/access-denied', { replace: true });
-      }
+    if (loading) return;               // masih fetching
+    if (!firebaseUser) return;          // belum login
+
+    if (userProfile?.accountStatus === 'Active') {
+      navigate(userProfile.role === 'ADMIN' ? '/admin' : '/staff', { replace: true });
+    } else if (userProfile !== undefined && userProfile !== null) {
+      // Profile ada tapi tidak Active (misal Inactive)
+      navigate('/access-denied', { replace: true });
+    } else if (userProfile === null) {
+      // Profile tidak ada sama sekali di Firestore
+      navigate('/access-denied', { replace: true });
     }
+    // Jika userProfile === undefined → jangan redirect (masih loading)
   }, [firebaseUser, userProfile, loading, navigate]);
 
   const handleLogin = async () => {

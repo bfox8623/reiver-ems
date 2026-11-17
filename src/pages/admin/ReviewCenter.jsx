@@ -5,6 +5,7 @@ import { StatusBadge, Modal } from '../../components/Shared';
 import { DivisionBadge } from '../../components/Layout';
 import { saveReview, saveTask, saveHistory, saveProgressUpdate } from '../../services/db';
 import { nowTimestamp } from '../../utils/date';
+import { formatTimestamp } from '../../utils/date';
 
 export default function ReviewCenter({ tasks, updates, reviews, users, userProfile, showToast }) {
   const navigate = useNavigate();
@@ -85,7 +86,7 @@ export default function ReviewCenter({ tasks, updates, reviews, users, userProfi
                   {staff && <DivisionBadge division={staff.division} />}
                 </div>
                 <h3 onClick={() => navigate(`/task/${task.id}`)} className="text-base font-bold text-white hover:text-cyan-300 cursor-pointer">{task.taskTitle}</h3>
-                <p className="text-xs text-slate-400">Submitted by <strong className="text-slate-200">{staff?.fullName}</strong> • {latest?.submissionDate || task.updatedAt}</p>
+                <p className="text-xs text-slate-400"> Submitted by <strong className="text-slate-200">{staff?.fullName}</strong> • {formatTimestamp(latest?.submissionDate || task.updatedAt)} </p>  
               </div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <button onClick={() => navigate(`/task/${task.id}`)} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200">Full History</button>

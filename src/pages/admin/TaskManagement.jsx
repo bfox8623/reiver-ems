@@ -86,9 +86,18 @@ export default function TaskManagement({ tasks, users, projects, milestones, use
           <h1 className="text-xl font-bold text-white">Task Management & Assignment</h1>
           <p className="text-xs text-slate-400">Assign, monitor, hold, reopen, or mark approved tasks completed</p>
         </div>
-        <button onClick={openNew} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs">
-          <Plus className="w-4 h-4" /> Assign New Task
-        </button>
+        {projects.length === 0 ? (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs">
+            <span>⚠️ Belum ada project.</span>
+            <button onClick={() => navigate('/admin/projects')} className="underline font-semibold hover:text-amber-100">
+              Buat Project Pertama →
+            </button>
+          </div>
+        ) : (
+          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs">
+            <Plus className="w-4 h-4" /> Assign New Task
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-[#0F172A] p-3.5 rounded-xl border border-slate-800">

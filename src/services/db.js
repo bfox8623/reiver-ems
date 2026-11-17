@@ -1,7 +1,7 @@
 import { db } from '../firebase';
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
-  onSnapshot, query, orderBy, serverTimestamp
+  onSnapshot, query, orderBy, where, writeBatch, serverTimestamp
 } from 'firebase/firestore';
 
 // ── USERS ────────────────────────────────────────────────
@@ -28,7 +28,31 @@ export const saveTask = (id, data) =>
 export const removeTask = (id) => deleteDoc(doc(db, 'tasks', id));
 export const subscribeTasks = (cb) => onSnapshot(collection(db, 'tasks'), cb);
 
-// ── PROGRESS UPDATES (append-only) ───────────────────────
+// ── TASK CASCADE DELETE ──────────────────────────────────
+// Hapus task + semua progress_updates & reviews terkait dalam satu batch.
+// activity_history TIDAK dihapus (berfungsi sebagai audit trail).
+export const deleteTaskWithCascade = async (taskId) => {
+  const updatesSnap = await getDocs(
+    query(collection(db, 'progress_updates'), where('taskId', '==', taskId))
+  );
+  const reviewsSnap = await getDocs(
+    query(collection(db, 'reviews'), where('taskId', '==', taskId))
+  );
+
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'tasks', taskId));
+  updatesSnap.forEach((d) => batch.delete(d.ref));
+  reviewsSnap.forEach((d) => batch.delete(d.ref));
+
+  await batch.commit();
+
+  return {
+    updatesDeleted: updatesSnap.size,
+    reviewsDeleted: reviewsSnap.size,
+  };
+};
+
+// ── PROGRESS UPDATES (append-only) ──────────────────────
 export const saveProgressUpdate = (id, data) =>
   setDoc(doc(db, 'progress_updates', id), { ...data, submissionDate: serverTimestamp() });
 export const subscribeProgressUpdates = (cb) => onSnapshot(collection(db, 'progress_updates'), cb);

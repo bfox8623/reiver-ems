@@ -26,16 +26,17 @@ export default function Layout({ children, notifications = [], onMarkAllRead, un
   const [showNotif, setShowNotif] = useState(false);
   const isAdmin = userProfile?.role === 'ADMIN';
 
-  const adminNav = [
-    { to: '/admin', label: 'Command Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/admin/tasks', label: 'Task Management', icon: CheckSquare },
-    { to: '/admin/reviews', label: 'Submission Review', icon: FileCheck2 },
-    { to: '/admin/revisions', label: 'Revision Tracker', icon: RotateCcw },
-    { to: '/admin/performance', label: 'Staff Performance', icon: Users },
-    { to: '/admin/timeline', label: 'Project Timeline', icon: CalendarRange },
-    { to: '/admin/history', label: 'Engineering Log', icon: History },
-    { to: '/admin/users', label: 'User Management', icon: Database },
-  ];
+const adminNav = [
+  { to: '/admin', label: 'Command Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/admin/projects', label: 'Projects & Milestones', icon: Layers },
+  { to: '/admin/tasks', label: 'Task Management', icon: CheckSquare },
+  { to: '/admin/reviews', label: 'Submission Review', icon: FileCheck2 },
+  { to: '/admin/revisions', label: 'Revision Tracker', icon: RotateCcw },
+  { to: '/admin/performance', label: 'Staff Performance', icon: Users },
+  { to: '/admin/timeline', label: 'Project Timeline', icon: CalendarRange },
+  { to: '/admin/history', label: 'Engineering Log', icon: History },
+  { to: '/admin/users', label: 'User Management', icon: Database },
+];
 
   const staffNav = [
     { to: '/staff', label: 'My Workspace', icon: LayoutDashboard, end: true },

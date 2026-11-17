@@ -16,6 +16,7 @@ import AdminStaffPerformance from './pages/admin/StaffPerformance';
 import AdminTimeline from './pages/admin/Timeline';
 import AdminActivityHistory from './pages/admin/ActivityHistory';
 import AdminUserManagement from './pages/admin/UserManagement';
+import AdminProjects from './pages/admin/Projects';
 
 import StaffDashboard from './pages/staff/Dashboard';
 import StaffMyTasks from './pages/staff/MyTasks';
@@ -137,6 +138,12 @@ export default function App() {
         <Route path="/admin/users" element={
           userProfile?.role === 'ADMIN' ? <Layout notifications={notifications} unreadCount={0} onMarkAllRead={() => {}}><AdminUserManagement {...sharedProps} /></Layout> : <Navigate to="/login" replace />
         } />
+        <Route path="/admin/projects" element={
+          userProfile?.role === 'ADMIN'
+            ? <Layout notifications={notifications} unreadCount={0} onMarkAllRead={() => {}}><AdminProjects {...sharedProps} /></Layout>
+            : <Navigate to="/login" replace />
+        } />
+
 
         {/* Staff routes */}
         <Route path="/staff" element={

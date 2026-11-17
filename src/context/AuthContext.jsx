@@ -13,15 +13,19 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setLoading(true);                // ← BARIS BARU
       setFirebaseUser(user);
+
       if (!user) {
         setUserProfile(null);
         setLoading(false);
         return;
       }
+
       const email = user.email;
       const ref = doc(db, 'users', email);
       const snap = await getDoc(ref);
+
       if (snap.exists()) {
         setUserProfile({ id: snap.id, ...snap.data() });
       } else if (BOOTSTRAP_ADMINS.includes(email)) {
